@@ -1,32 +1,19 @@
 import random
-from collections import deque
-from tkinter import *
+import tkinter
+import math
 
-root = Tk()
-
-# Create a black frame
-frame = Frame(root, bg="black")
-frame.pack()
-
-d = 20 # diametre d'un element du serpent (= taille d'une cellule)
-n_w = 35 # nombre de cellules sur la largeur
-n_h = 35 # nombre de cellules sur la hauteur
-canvas_w = n_w*d
-canvas_h = n_h*d
-
-canvas = Canvas(frame, width=canvas_w, height=canvas_h, bg="black")
-
-coords = [[(i*d, j*d) for j in range(n_h)] for i in range(n_w)]  # matrice i, j -> x, y (coordonnees en pixels du coin haut gauche de la cellule)
-
-
-def draw_img(img, x, y, width, color_map):
+def draw_img(img, x, y, width, color_map, canvas):
     h = len(img)
     w = len(img[0])
 
+    obj = []
     for i in range(h):
         for j in range(w):
             val = img[i][j]
-            canvas.create_rectangle(x + j*width, y + i*width, x + (j+1)*width, y + (i+1)*width, fill=color_map[val], outline=color_map[val])
+            obj.append(
+                canvas.create_rectangle(x + j*width, y + i*width, x + (j+1)*width, y + (i+1)*width, fill=color_map[val], outline=color_map[val])
+            )
+    return obj
 
 skull = [
 '0000000000000',
@@ -42,59 +29,62 @@ skull = [
 '0001101011000',
 ]
 class Head:
-    def __init__(self, i, j, body):
-        self.body = body
+    def __init__(self, i, j, game):
+        self.game = game
+        # init prev_coord and coord variables
         self.prev_coord = (i, j)
         self.coord = (i, j)
-        x, y = coords[i][j]
-        self.shape = canvas.create_oval(x, y, x+d, y+d, fill="green")
-        self.direction = []  # queue
-        self.curr_direction = (1, 0)
+        # convert i, j index to pixel coordinates
+        x, y = self.game.coords[i][j]
+        # init canvas shape
+        self.shape = self.game.canvas.create_oval(x, y, x+self.game.d, y+self.game.d, fill="green", outline="green")
 
+        self.direction = []  # queue where we store (dx, dy) direction tuples
+        self.curr_direction = (1, 0)
         self.path = [(i, j)]
 
     def move(self):
         dx_, dy_ = self.curr_direction
         dx, dy = self.direction.pop(0) if self.direction else self.curr_direction
 
-        if len(self.body.body_parts) > 1 and ((dx_ == -dx and (dx_ == 1 or dx_ == -1)) or (dy_ == -dy and (dy_ == 1 or dy_ == -1))):  # prevent 180 degrees turn
+        if len(self.game.body_parts) > 1 and ((dx_ == -dx and (dx_ == 1 or dx_ == -1)) or (dy_ == -dy and (dy_ == 1 or dy_ == -1))):  # prevent 180 degrees turn
             dx, dy = dx_, dy_
 
         self.curr_direction = (dx, dy)
         i, j = self.coord
         new_i, new_j = i+dx, j+dy
-        if new_i >= n_w:
+        if new_i >= self.game.n_w:
             new_i = 0
         if new_i < 0:
-            new_i = n_w - 1
-        if new_j >= n_h:
+            new_i = self.game.n_w - 1
+        if new_j >= self.game.n_h:
             new_j = 0
         if new_j < 0:
-            new_j = n_h - 1
+            new_j = self.game.n_h - 1
 
         if (new_i, new_j) in self.path:
             return True
 
-        if self.body.apple_coord and (new_i, new_j) == self.body.apple_coord:
-            self.body.forbidden.append(self.body.apple_coord)
-            bp = self.body.body_parts[-1]
+        if self.game.apple_coord and (new_i, new_j) == self.game.apple_coord:
+            self.game.forbidden.append(self.game.apple_coord)
+            bp = self.game.body_parts[-1]
             i_, j_ = bp.prev_coord
             # add body part
-            body.body_parts.append(BodyPart(i=i_, j=j_, prev_body_part=bp))
+            self.game.body_parts.append(BodyPart(i=i_, j=j_, game=self.game, prev_body_part=bp))
             # remove apple
-            canvas.delete(self.body.apple)
+            self.game.canvas.delete(self.game.apple)
             # generate new apple
-            self.body.new_apple()
-            self.body.inc_score()
+            self.game.new_apple()
+            self.game.inc_score()
 
 
-        x, y = coords[new_i][new_j]
-        canvas.coords(self.shape, x, y, x+d, y+d)
+        x, y = self.game.coords[new_i][new_j]
+        self.game.canvas.coords(self.shape, x, y, x+self.game.d, y+self.game.d)
 
         self.prev_coord = self.coord
         self.coord = (new_i, new_j)
 
-        if len(self.path) == len(self.body.body_parts):
+        if len(self.path) == len(self.game.body_parts):
             self.path.pop(0)
         self.path.append(self.coord)
 
@@ -102,33 +92,56 @@ class Head:
 
 
 class BodyPart:
-    def __init__(self, i, j, prev_body_part):
-        x, y = coords[i][j]
-        self.shape = canvas.create_oval(x, y, x+d, y+d, fill="white")
+    def __init__(self, i, j, game, prev_body_part):
+        self.game = game
+        # convert i, j index to pixel coordinates
+        x, y = self.game.coords[i][j]
+        # init canvas shape
+        self.shape = self.game.canvas.create_oval(x, y, x+self.game.d, y+self.game.d, fill="white", outline="white")
 
+        # init variables
         self.prev_coord = (i, j)
         self.coord = (i, j)
         self.prev_body_part = prev_body_part
 
     def move(self):
         i, j = self.prev_body_part.prev_coord
-        x, y = coords[i][j]
-        canvas.coords(self.shape, x, y, x+d, y+d)
+        x, y = self.game.coords[i][j]
+        self.game.canvas.coords(self.shape, x, y, x+self.game.d, y+self.game.d)
         self.prev_coord = self.coord
         self.coord = (i, j)
 
 
-class Body:
+class Game:
     def __init__(self):
-        i, j = n_w//2, n_h//2
-        self.head = Head(i=i, j=j, body=self)
+        # init tkinter root and canvas
+        self.d = 20 # diametre d'un element du serpent (= taille d'une cellule)
+        self.n_w = 35 # nombre de cellules sur la largeur
+        self.n_h = 35 # nombre de cellules sur la hauteur
+        self.canvas_w = self.n_w*self.d
+        self.canvas_h = self.n_h*self.d
+
+        self.root = tkinter.Tk()
+        self.canvas = tkinter.Canvas(self.root, width=self.canvas_w, height=self.canvas_h, bg="black")
+
+        # create coordinates map
+        self.coords = [[(i*self.d, j*self.d) for j in range(self.n_h)] for i in range(self.n_w)]  # matrice i, j -> x, y (coordonnees en pixels du coin haut gauche de la cellule)
+
+        self.skull = []
+        self.init_head()
+
+    def init_head(self):
+        # create head at the center
+        i, j = self.n_w//2, self.n_h//2
+        self.head = Head(i=i, j=j, game=self)
         self.body_parts = []
         self.speed = (5, 1)  # x cells/sec + y*score cells/sec
-        self.refresh_period = 50 # 100 ms
+        self.fps = 60
+        self.refresh_period = math.floor(1000/self.fps) # in ms
 
         prev = self.head
         for k in range(5):
-            bp = BodyPart(i-k, j, prev_body_part=prev)
+            bp = BodyPart(i-k, j, game=self, prev_body_part=prev)
             self.body_parts.append(bp)
             prev = bp
 
@@ -140,19 +153,22 @@ class Body:
         self.inc_score()
         self.nmoves = 0
 
+        self.canvas.pack()
+        self.collision = False
+
     def inc_score(self):
         if self.score_obj:
-            canvas.delete(self.score_obj)
+            self.canvas.delete(self.score_obj)
         self.score += 1
-        self.score_obj = canvas.create_text(10, 10, text="SCORE: %s" % self.score, fill="white", font=('Helvetica 15 bold'), anchor=NW)
+        self.score_obj = self.canvas.create_text(10, 10, text="SCORE: %s" % self.score, fill="white", font=('Helvetica 15 bold'), anchor=tkinter.NW)
 
     def new_apple(self):
         forbidden = [*self.forbidden, *self.head.path]
-        idx = random.choice([i for i in range(n_w*n_h) if i not in [(j_*n_h) + i_ for i_, j_ in forbidden]])
-        j = idx//n_h
-        i = idx % n_h
-        x, y = coords[i][j]
-        self.apple = canvas.create_oval(x, y, x+d, y+d, fill="red")
+        idx = random.choice([i for i in range(self.n_w*self.n_h) if i not in [(j_*self.n_h) + i_ for i_, j_ in forbidden]])
+        j = idx//self.n_h
+        i = idx % self.n_h
+        x, y = self.coords[i][j]
+        self.apple = self.canvas.create_oval(x, y, x+self.d, y+self.d, fill="red")
         self.apple_coord = (i, j)
 
     def change_direction(self, event):
@@ -169,31 +185,47 @@ class Body:
 
         self.head.direction.append((new_dx, new_dy))
 
+    def restart(self):
+        self.button.destroy()
+        self.canvas.delete(self.button_window)
+        self.canvas.configure(bg="black")
+        self.canvas.delete(self.score_obj)
+        if self.skull:
+            for obj in self.skull:
+                self.canvas.delete(obj)
+        self.init_head()
+        self.run()
+
+    def game_over_screen(self):
+        self.canvas.configure(bg="#8b0000")
+        self.canvas.delete(self.head.shape)
+        for bp in self.body_parts:
+            self.canvas.delete(bp.shape)
+        if self.apple:
+            self.canvas.delete(self.apple)
+        self.skull = draw_img(skull, (self.canvas_w-len(skull[0])*20)//2, (self.canvas_h-len(skull)*20)//2, 20, color_map={"0": "#8b0000", "1": "black"}, canvas=self.canvas)
+        self.button = tkinter.Button(self.root, width="10", height="2", text="Restart", command = self.restart)
+        self.button_window = self.canvas.create_window(self.canvas_w//2, 4*self.canvas_h//5, anchor=tkinter.CENTER, window=self.button)
+
     def new_frame(self):
+        # number of moves to do
         self.nmoves += self.refresh_period/1000*(self.speed[0] + self.speed[1]*self.score)  # 50 ms/1000 * (5 + 5*0) cells/sec = 0.25 cells / update
         for _ in range(int(round(self.nmoves, 0))):
-            destroy = self.head.move()
-            if destroy:
-                print(f"SCORE: {self.score}")
-                canvas.configure(bg="#8b0000")
-                canvas.delete(self.head.shape)
-                for bp in self.body_parts:
-                    canvas.delete(bp.shape)
-                if self.apple:
-                    canvas.delete(self.apple)
-                draw_img(skull, (canvas_w-len(skull[0])*20)//2, (canvas_h-len(skull)*20)//2, 20, color_map={"0": "#8b0000", "1": "black"})
-                #root.destroy()
+            collision = self.head.move()
+            if collision:
+                self.game_over_screen()
                 return
 
             for bp in self.body_parts:
                 bp.move()
             self.nmoves -= 1
-        root.after(self.refresh_period, body.new_frame)
+        self.root.after(self.refresh_period, self.new_frame)
 
+    def run(self):
+        self.root.bind("<Key>", self.change_direction)
+        self.new_frame()
+        self.root.mainloop()
 
-body = Body()
-canvas.pack()
-# Bind the "move_circle" function to keyboard events
-root.bind("<Key>", body.change_direction)
-body.new_frame()
-root.mainloop()
+if __name__ == "__main__":
+    game = Game()
+    game.run()
