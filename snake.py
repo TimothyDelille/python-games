@@ -2,32 +2,8 @@ import random
 import tkinter
 import math
 
-def draw_img(img, x, y, width, color_map, canvas):
-    h = len(img)
-    w = len(img[0])
+from utils import draw_img, skull
 
-    obj = []
-    for i in range(h):
-        for j in range(w):
-            val = img[i][j]
-            obj.append(
-                canvas.create_rectangle(x + j*width, y + i*width, x + (j+1)*width, y + (i+1)*width, fill=color_map[val], outline=color_map[val])
-            )
-    return obj
-
-skull = [
-'0000000000000',
-'0011111111100',
-'0111111111110',
-'0111111111110',
-'1111001001111',
-'1100001000011',
-'1100011100011',
-'0111111111110',
-'0111110111110',
-'0001111111000',
-'0001101011000',
-]
 class Head:
     def __init__(self, i, j, game):
         self.game = game
@@ -128,9 +104,9 @@ class Game:
         self.coords = [[(i*self.d, j*self.d) for j in range(self.n_h)] for i in range(self.n_w)]  # matrice i, j -> x, y (coordonnees en pixels du coin haut gauche de la cellule)
 
         self.skull = []
-        self.init_head()
+        self.init_body()
 
-    def init_head(self):
+    def init_body(self):
         # create head at the center
         i, j = self.n_w//2, self.n_h//2
         self.head = Head(i=i, j=j, game=self)
@@ -190,10 +166,9 @@ class Game:
         self.canvas.delete(self.button_window)
         self.canvas.configure(bg="black")
         self.canvas.delete(self.score_obj)
-        if self.skull:
-            for obj in self.skull:
-                self.canvas.delete(obj)
-        self.init_head()
+        for obj in self.skull:
+            self.canvas.delete(obj)
+        self.init_body()
         self.run()
 
     def game_over_screen(self):
