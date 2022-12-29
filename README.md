@@ -1,5 +1,6 @@
-# python-snake
-Python implementation of **Snake** using tkinter.
+# python-games
+Python implementation of some classic games for my little cousins to play with, using the `tkinter` library.
 
-## How to run?
-`python3 main.py`
+## List of games:
+* snake: `python3 snake.py`
+* flappy bird: `python3 flappy-bird.py`
